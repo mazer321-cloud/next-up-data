@@ -1,0 +1,40 @@
+# Weekly: read new public DJ sets and update transitions.json (what DJs play next), which Next Up downloads.
+# Runs only on its schedule or when started by hand from the Actions tab (with a smaller page budget to test).
+name: Collect crowd data
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: Most pages to read (one every 3 seconds)
+        default: '1500'
+
+permissions:
+  contents: write # to commit the updated data files to this repo
+
+concurrency: collect # never two runs at once
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Collect
+        run: node out/collector/run.js --data . --max-pages "${{ github.event.inputs.max_pages || '1500' }}"
+      - name: Publish
+        run: |
+          git config user.name "Next Up collector"
+          git config user.email "279746717+mazer321-cloud@users.noreply.github.com"
+          git add transitions.json state.json
+          git diff --cached --quiet || git commit -m "Weekly data $(date -u +%F)"
+          git push
