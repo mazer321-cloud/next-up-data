@@ -36,8 +36,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: private-state
-          key: collector-state-${{ github.run_id }}
-          restore-keys: collector-state-
+          key: collector-state-v2-${{ github.run_id }}
+          restore-keys: collector-state-v2-
 
       - name: Collect
         env:
@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: private-state
-          key: collector-state-${{ github.run_id }}
+          key: collector-state-v2-${{ github.run_id }}
 
       - name: Publish
         run: |

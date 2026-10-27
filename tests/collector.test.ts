@@ -33,38 +33,50 @@ describe('reading Serato playlist pages', () => {
 describe('turning sets into "played next" counts', () => {
   const set = (...names: string[]) => names.map((n) => ({ artist: n.split(':')[0], title: n.split(':')[1] }));
 
-  it('counts each song-to-next-song step, merging versions of the same song', () => {
+  it('counts how many different DJs played each song straight after another, merging versions', () => {
     const store = emptyStore();
-    addSet(store, set('Asake:Lonely At The Top', 'Burna Boy:Last Last', 'Rema:Calm Down'));
-    addSet(store, set('Asake:Lonely At The Top (Intro Clean)', 'Burna Boy ft. Someone:Last Last (Dirty)'));
+    addSet(store, set('Asake:Lonely At The Top', 'Burna Boy:Last Last', 'Rema:Calm Down'), 'dj1');
+    addSet(store, set('Asake:Lonely At The Top (Intro Clean)', 'Burna Boy ft. Someone:Last Last (Dirty)'), 'dj2');
     const data = toDataFile(store, { minCount: 1, perSong: 10, updated: '2026-10-27' });
     expect(data.sets).toBe(2);
+    expect(data.djs).toBe(2);
     expect(data.next['asake|lonelyatthetop']).toEqual([['burnaboy|lastlast', 2]]);
     expect(data.next['burnaboy|lastlast']).toEqual([['rema|calmdown', 1]]);
   });
 
-  it('skips a song followed by another version of itself, and counts a pair once per set', () => {
+  it('counts a DJ once, however many of their sets repeat the same routine', () => {
     const store = emptyStore();
-    addSet(store, set('A:One', 'A:One (Clean)', 'B:Two', 'A:One', 'B:Two'));
+    for (let i = 0; i < 10; i++) addSet(store, set('Chingy:Right Thurr', 'Alicia Keys:Girl On Fire'), 'routine-dj');
+    addSet(store, set('Chingy:Right Thurr', 'Alicia Keys:Girl On Fire'), 'other-dj');
+    const data = toDataFile(store, { minCount: 1, perSong: 10, updated: 'x' });
+    expect(data.next['chingy|rightthurr']).toEqual([['aliciakeys|girlonfire', 2]]);
+    expect(data.sets).toBe(11);
+    expect(data.djs).toBe(2);
+  });
+
+  it('skips a song followed by another version of itself', () => {
+    const store = emptyStore();
+    addSet(store, set('A:One', 'A:One (Clean)', 'B:Two', 'A:One', 'B:Two'), 'dj1');
     const data = toDataFile(store, { minCount: 1, perSong: 10, updated: 'x' });
     expect(data.next['a|one']).toEqual([['b|two', 1]]);
     expect(data.next['b|two']).toEqual([['a|one', 1]]);
   });
 
-  it('keeps only the strongest follow-ups per song and drops one-offs when asked', () => {
+  it('keeps only the strongest follow-ups per song and drops one-DJ pairs when asked', () => {
     const store = emptyStore();
-    for (let i = 0; i < 3; i++) addSet(store, set('A:One', 'B:Two'));
-    addSet(store, set('A:One', 'C:Three'));
-    addSet(store, set('A:One', 'D:Four'));
+    for (const dj of ['d1', 'd2', 'd3']) addSet(store, set('A:One', 'B:Two'), dj);
+    addSet(store, set('A:One', 'C:Three'), 'd1');
+    addSet(store, set('A:One', 'D:Four'), 'd2');
     expect(toDataFile(store, { minCount: 2, perSong: 10, updated: 'x' }).next['a|one']).toEqual([['b|two', 3]]);
     expect(toDataFile(store, { minCount: 1, perSong: 2, updated: 'x' }).next['a|one']).toHaveLength(2);
   });
 
   it('stores no DJ names or links, only song keys, counts and a display name per song', () => {
     const store = emptyStore();
-    addSet(store, set('Asake:Lonely At The Top', 'Burna Boy:Last Last'));
+    addSet(store, set('Asake:Lonely At The Top', 'Burna Boy:Last Last'), 'dj1');
     const data = toDataFile(store, { minCount: 1, perSong: 10, updated: 'x' });
-    expect(Object.keys(data).sort()).toEqual(['names', 'next', 'sets', 'updated', 'version']);
+    expect(Object.keys(data).sort()).toEqual(['djs', 'names', 'next', 'sets', 'updated', 'version']);
+    expect(data.version).toBe(2);
     expect(data.names['asake|lonelyatthetop']).toBe('Asake - Lonely At The Top');
   });
 });

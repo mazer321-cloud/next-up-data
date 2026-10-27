@@ -12,8 +12,10 @@ const USER_AGENT = 'NextUpCollector/0.1 (+https://github.com/mazer321-cloud/next
 const DELAY_MS = 3000; // one page every 3 seconds at most
 
 interface SavedState {
+  version: 2;
   sets: number;
-  pairs: Record<string, Record<string, number>>;
+  djs: string[];                                    // anonymous DJ ids
+  pairs: Record<string, Record<string, string[]>>;  // song -> next song -> anonymous DJ ids
   names: Record<string, string>;
   seenSets: string[];
   seenDjs: string[];
@@ -50,14 +52,27 @@ async function fetchPage(pagePath: string): Promise<string | null> {
 function load(file: string): { store: Store; seenSets: Set<string>; seenDjs: Set<string> } {
   if (!fs.existsSync(file)) return { store: emptyStore(), seenSets: new Set(), seenDjs: new Set() };
   const s = JSON.parse(fs.readFileSync(file, 'utf8')) as SavedState;
-  const pairs = new Map(Object.entries(s.pairs).map(([a, after]) => [a, new Map(Object.entries(after))]));
-  return { store: { sets: s.sets, pairs, names: new Map(Object.entries(s.names)) }, seenSets: new Set(s.seenSets), seenDjs: new Set(s.seenDjs) };
+  if (s.version !== 2) {
+    // Older progress counted sets, not DJs, and can't be converted: start again and re-read everything.
+    console.log('[collect] progress file is from an older version, starting fresh');
+    return { store: emptyStore(), seenSets: new Set(), seenDjs: new Set() };
+  }
+  const pairs = new Map(Object.entries(s.pairs).map(([a, after]) =>
+    [a, new Map(Object.entries(after).map(([b, djs]) => [b, new Set(djs)]))]));
+  return {
+    store: { sets: s.sets, djs: new Set(s.djs), pairs, names: new Map(Object.entries(s.names)) },
+    seenSets: new Set(s.seenSets),
+    seenDjs: new Set(s.seenDjs),
+  };
 }
 
 function save(file: string, store: Store, seenSets: Set<string>, seenDjs: Set<string>) {
   const s: SavedState = {
+    version: 2,
     sets: store.sets,
-    pairs: Object.fromEntries([...store.pairs].map(([a, after]) => [a, Object.fromEntries(after)])),
+    djs: [...store.djs],
+    pairs: Object.fromEntries([...store.pairs].map(([a, after]) =>
+      [a, Object.fromEntries([...after].map(([b, djs]) => [b, [...djs]]))])),
     names: Object.fromEntries(store.names),
     seenSets: [...seenSets],
     seenDjs: [...seenDjs],
@@ -86,7 +101,7 @@ async function main() {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   save(statePath, store, seenSets, seenDjs);
-  // Published file: song keys and counts only. Pairs seen at a single party are left out, so no one DJ's set
+  // Published file: song keys and counts only. Pairs played by only one DJ are left out, so no one DJ's set
   // can be pieced back together from it; display names aren't needed by the app and stay in the private state.
   const { names: _names, ...data } = toDataFile(store, { minCount: Number(arg('min-count', '2')), perSong: 15, updated: new Date().toISOString().slice(0, 10) });
   fs.writeFileSync(path.join(dataDir, 'transitions.json'), JSON.stringify(data));

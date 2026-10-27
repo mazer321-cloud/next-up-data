@@ -43,9 +43,9 @@ export async function crawl(store: Store, state: CrawlState, opts: CrawlOptions)
       skipped++;
       return;
     }
-    addSet(store, tracks);
-    kept++;
     const dj = link.split('/')[2];
+    addSet(store, tracks, hash(dj)); // anonymous id, so each DJ counts once per pair
+    kept++;
     if (!focusDjs.includes(dj)) focusDjs.push(dj);
   };
 

@@ -2,7 +2,7 @@
 
 Song-to-song data used by the Next Up DJ app to suggest what to play next.
 
-- `transitions.json`: for each song, the songs DJs most often played straight after it, with how many sets that happened in.
+- `transitions.json`: for each song, the songs DJs most often played straight after it, with how many different DJs did so (pairs played by only one DJ are left out).
 - The collector's progress (full counts, sets already read) is kept privately in the workflow's cache, not in this repo.
 
 Built weekly from public DJ playlists. Only song names and counts are stored: no DJ names, set names or links.
