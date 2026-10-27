@@ -1,5 +1,6 @@
-// Command line: node out/collector/run.js --data <folder> [--max-pages 1500] [--min-count 1]
-// Reads <folder>/state.json (progress + full counts), crawls, then writes state.json and transitions.json there.
+// Command line: node out/collector/run.js --data <folder> [--state <file>] [--max-pages 1500] [--min-count 2]
+// Reads the state file (progress + full counts; kept private, not published), crawls, then writes the state file
+// and <folder>/transitions.json (the published file).
 // Focus artists and seed DJs come from collector/focus-artists.json and collector/seeds.json in the repo.
 import fs from 'fs';
 import path from 'path';
@@ -69,7 +70,7 @@ async function main() {
   const repoDir = path.join(__dirname, '..', '..', 'collector');
   const focusArtists = new Set(JSON.parse(fs.readFileSync(path.join(repoDir, 'focus-artists.json'), 'utf8')) as string[]);
   const seedDjs = JSON.parse(fs.readFileSync(path.join(repoDir, 'seeds.json'), 'utf8')) as string[];
-  const statePath = path.join(dataDir, 'state.json');
+  const statePath = arg('state', path.join(dataDir, 'state.json'));
   const { store, seenSets, seenDjs } = load(statePath);
   const before = store.sets;
 
@@ -83,8 +84,11 @@ async function main() {
   });
 
   fs.mkdirSync(dataDir, { recursive: true });
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
   save(statePath, store, seenSets, seenDjs);
-  const data = toDataFile(store, { minCount: Number(arg('min-count', '1')), perSong: 15, updated: new Date().toISOString().slice(0, 10) });
+  // Published file: song keys and counts only. Pairs seen at a single party are left out, so no one DJ's set
+  // can be pieced back together from it; display names aren't needed by the app and stay in the private state.
+  const { names: _names, ...data } = toDataFile(store, { minCount: Number(arg('min-count', '2')), perSong: 15, updated: new Date().toISOString().slice(0, 10) });
   fs.writeFileSync(path.join(dataDir, 'transitions.json'), JSON.stringify(data));
   console.log(`[collect] ${store.sets - before} new sets (${store.sets} total), ${Object.keys(data.next).length} songs with follow-ups; pages read: ${result.pages}`);
 }
